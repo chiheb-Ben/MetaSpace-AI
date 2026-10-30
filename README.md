@@ -29,7 +29,8 @@ MetaSpace directly delivers on this challenge:
 3. **Multi-System Anti-Repetition Engine:** Classifies all spaceship hardware into 5 distinct engineering domains (*Coolant Fluids, Electrical Bus, Avionics Computing, Reactor Core, Life Support*) to autonomously cycle challenges across the entire station.
 4. **Physical Consequences for Engineering Errors:** If an astronaut fails three consecutive engineering dilemma questions on the holographic tablet, the station physically ruptures: spawning explosive particle cascades (`P_Explosion_Big_A`), triggering camera shakes, sounding cabin alarms, and venting suit oxygen.
 5. **Automated Cloud Telemetry & Debriefing:** Real-time metrics (tether slingshot velocity, wall anchoring latency, tool selection accuracy) are streamed to a dedicated PHP/MySQL cloud dashboard where Meta AI generates autonomous astronaut debriefs and issues Flight Readiness Certifications (`QUALIFIED_FLIGHT_READY`, `CONDITIONAL_TRAINING`, `GROUNDED_REMEDIAL`).
-
+6. Full-Map Spatial Scanning & Emergent Task Generation:
+Meta AI continuously scans the entire 3D environment in real-time to detect the types and locations of randomly scattered physical tools (e.g., screwdrivers, wrenches, fire extinguishers). Instead of relying on pre-scripted events, the AI dynamically invents specific engineering crises tailored strictly to the exact equipment currently distributed across the map. This demonstrates true spatial reasoning and the model's ability to drive emergent cyber-physical gameplay based on environmental variables.
 ---
 
 ## 🏛️ System Architecture
