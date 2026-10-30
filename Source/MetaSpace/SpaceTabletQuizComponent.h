@@ -107,6 +107,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tablet Quiz|1. Proximity & UI")
 	bool bManageInputModeAndCursor = true;
 
+	/** Automatically close the tablet UI and restore full controls after answering a dilemma */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tablet Quiz|1. Proximity & UI")
+	bool bAutoCloseOnAnswerEvaluated = false;
+
+	/** Delay in seconds before auto-closing the tablet UI after an answer is submitted (if bAutoCloseOnAnswerEvaluated is true) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tablet Quiz|1. Proximity & UI", meta = (ClampMin = "0.5", ClampMax = "10.0"))
+	float AutoCloseDelayAfterAnswerSeconds = 2.5f;
+
 	// =========================================================================
 	// 2. Meta AI Dilemma Prompt & API Settings
 	// =========================================================================
@@ -194,6 +202,14 @@ public:
 	/** Toggles the tablet UI between open and closed */
 	UFUNCTION(BlueprintCallable, Category = "Tablet Quiz|UI")
 	void ToggleTabletUI();
+
+	/** Closes the tablet UI window and unconditionally restores player movement, 6-DOF thrusters, and wall grabs */
+	UFUNCTION(BlueprintCallable, Category = "Tablet Quiz|UI")
+	void CloseTabletAndRestoreControls();
+
+	/** Emergency static utility: Force restores all player controls, hides mouse cursor, and unlocks 6-DOF thrusters from ANY Blueprint */
+	UFUNCTION(BlueprintCallable, Category = "Tablet Quiz|UI", meta = (WorldContext = "WorldContextObject"))
+	static void ForceRestorePlayerControls(const UObject* WorldContextObject);
 
 	/** Requests a brand-new situation dilemma from Meta AI (or offline pool) */
 	UFUNCTION(BlueprintCallable, Category = "Tablet Quiz|Logic")
@@ -286,6 +302,7 @@ private:
 
 	FSpaceQuizDilemma CurrentDilemma;
 	bool bIsUIVisible = false;
+	bool bOpenedViaProximity = false;
 	bool bIsWaitingForAIResponse = false;
 	bool bHasAnsweredCurrentQuestion = false;
 	bool bLastAnswerWasCorrect = false;
@@ -295,6 +312,7 @@ private:
 	int32 QuestionsCorrectCount = 0;
 
 	FTimerHandle NextQuestionTimerHandle;
+	FTimerHandle AutoCloseTimerHandle;
 	TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> ActiveHttpRequest;
 
 	void SendChatCompletionRequest();

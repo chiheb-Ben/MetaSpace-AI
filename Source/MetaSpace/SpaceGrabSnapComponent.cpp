@@ -1113,7 +1113,7 @@ void USpaceGrabSnapComponent::UpdateSnapAnimation(float DeltaTime)
 
 void USpaceGrabSnapComponent::ProcessInputBindings()
 {
-	if (bInputLockedForUI || !bUseDirectKeyBindings || !OwnerCharacter)
+	if (!bUseDirectKeyBindings || !OwnerCharacter)
 	{
 		return;
 	}
@@ -1125,6 +1125,7 @@ void USpaceGrabSnapComponent::ProcessInputBindings()
 	}
 
 	// Dedicated [T] key: Toggles the Space Tablet & AI Technical Quiz anytime from anywhere!
+	// (Evaluated BEFORE bInputLockedForUI so the player can always toggle/close the tablet even when UI is focused)
 	if (PC->WasInputKeyJustPressed(EKeys::T))
 	{
 		if (USpaceTabletQuizComponent* TabletQuizComp = USpaceTabletQuizComponent::GetSpaceTabletQuizComponent(this))
@@ -1133,6 +1134,24 @@ void USpaceGrabSnapComponent::ProcessInputBindings()
 			TabletQuizComp->ToggleTabletUI();
 			return;
 		}
+	}
+
+	// Emergency [Escape] key: If tablet is open and player presses Escape, close tablet and restore controls
+	if (PC->WasInputKeyJustPressed(EKeys::Escape))
+	{
+		if (USpaceTabletQuizComponent* TabletQuizComp = USpaceTabletQuizComponent::GetSpaceTabletQuizComponent(this))
+		{
+			if (TabletQuizComp->IsTabletUIVisible())
+			{
+				TabletQuizComp->CloseTabletUI();
+				return;
+			}
+		}
+	}
+
+	if (bInputLockedForUI)
+	{
+		return;
 	}
 
 	// 1. E Key: INTERACT ONLY! NEVER drops held objects!

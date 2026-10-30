@@ -60,6 +60,7 @@ void USpaceTabletQuizComponent::EndPlay(const EEndPlayReason::Type EndPlayReason
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(NextQuestionTimerHandle);
+		World->GetTimerManager().ClearTimer(AutoCloseTimerHandle);
 	}
 
 	if (ActiveWidgetInstance)
@@ -95,13 +96,14 @@ void USpaceTabletQuizComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	{
 		if (DistanceToPlayer <= ProximityOpenDistance)
 		{
+			bOpenedViaProximity = true;
 			OpenTabletUI();
 		}
 	}
-	// 2. Proximity Close when drifting away
+	// 2. Proximity Close when drifting away (Only if opened via proximity, NOT if opened via T key or remote toggle!)
 	else if (bIsUIVisible)
 	{
-		if (DistanceToPlayer > ProximityCloseDistance)
+		if (DistanceToPlayer > ProximityCloseDistance && bOpenedViaProximity)
 		{
 			CloseTabletUI();
 		}
@@ -140,7 +142,7 @@ void USpaceTabletQuizComponent::OpenTabletUI()
 	// Spawn or unhide UMG widget if class is configured
 	if (TabletWidgetClass)
 	{
-		if (!ActiveWidgetInstance || !IsValid(ActiveWidgetInstance))
+		if (!ActiveWidgetInstance || !IsValid(ActiveWidgetInstance) || !ActiveWidgetInstance->IsInViewport())
 		{
 			ActiveWidgetInstance = CreateWidget<UUserWidget>(World, TabletWidgetClass);
 			if (ActiveWidgetInstance)
@@ -154,17 +156,13 @@ void USpaceTabletQuizComponent::OpenTabletUI()
 		}
 	}
 
-	// Switch input mode, freeze player movement/look controls, and enable mouse cursor in C++
+	// Switch input mode, freeze player movement/look controls, 6-DOF thrusters, wall grab, and enable mouse cursor in C++
 	if (bManageInputModeAndCursor)
 	{
+		UMetaAIComponent::LockPlayerInputForUI(this, true, true);
+
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
 		{
-			PC->SetIgnoreMoveInput(true);
-			PC->SetIgnoreLookInput(true);
-			PC->bShowMouseCursor = true;
-			PC->bEnableClickEvents = true;
-			PC->bEnableMouseOverEvents = true;
-
 			FInputModeGameAndUI InputMode;
 			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 			InputMode.SetHideCursorDuringCapture(false);
@@ -193,30 +191,34 @@ void USpaceTabletQuizComponent::OpenTabletUI()
 
 void USpaceTabletQuizComponent::CloseTabletUI()
 {
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		World->GetTimerManager().ClearTimer(AutoCloseTimerHandle);
+	}
+
 	if (!bIsUIVisible)
 	{
+		// Fallback: Ensure player controls are completely unlocked even if UI was closed externally
+		if (bManageInputModeAndCursor)
+		{
+			UMetaAIComponent::LockPlayerInputForUI(this, false, false);
+		}
 		return;
 	}
 
-	UWorld* World = GetWorld();
 	bIsUIVisible = false;
+	bOpenedViaProximity = false;
 
 	if (ActiveWidgetInstance && IsValid(ActiveWidgetInstance))
 	{
 		ActiveWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 	}
 
-	// Restore pure Game-Only input mode, re-enable player movement/look, and hide mouse cursor in C++
-	if (bManageInputModeAndCursor && World)
+	// Fully restore pure Game-Only input mode, 6-DOF thrusters, wall grab, and hide mouse cursor in C++
+	if (bManageInputModeAndCursor)
 	{
-		if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
-		{
-			PC->SetIgnoreMoveInput(false);
-			PC->SetIgnoreLookInput(false);
-			PC->bShowMouseCursor = false;
-			FInputModeGameOnly InputMode;
-			PC->SetInputMode(InputMode);
-		}
+		UMetaAIComponent::LockPlayerInputForUI(this, false, false);
 	}
 
 	OnTabletVisibilityChanged.Broadcast(false);
@@ -230,8 +232,20 @@ void USpaceTabletQuizComponent::ToggleTabletUI()
 	}
 	else
 	{
+		bOpenedViaProximity = false; // Opened manually via key or toggle: bypass proximity close!
 		OpenTabletUI();
 	}
+}
+
+void USpaceTabletQuizComponent::CloseTabletAndRestoreControls()
+{
+	CloseTabletUI();
+	UMetaAIComponent::LockPlayerInputForUI(this, false, false);
+}
+
+void USpaceTabletQuizComponent::ForceRestorePlayerControls(const UObject* WorldContextObject)
+{
+	UMetaAIComponent::LockPlayerInputForUI(WorldContextObject, false, false);
 }
 
 void USpaceTabletQuizComponent::RequestNewQuestionFromAI()
@@ -605,6 +619,23 @@ bool USpaceTabletQuizComponent::SubmitOptionChoice(int32 OptionIndex)
 		LastFeedbackMessage,
 		CurrentDilemma.PunishmentEvent
 	);
+
+	// Auto-close tablet and restore player controls if configured
+	if (bAutoCloseOnAnswerEvaluated)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(
+				AutoCloseTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					CloseTabletUI();
+				}),
+				FMath::Max(0.5f, AutoCloseDelayAfterAnswerSeconds),
+				false
+			);
+		}
+	}
 
 	// Schedule next question
 	if (AutoNextQuestionDelaySeconds > 0.0f)
