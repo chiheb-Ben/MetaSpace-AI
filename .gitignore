@@ -1,0 +1,39 @@
+# =========================================================================
+# Unreal Engine 5 .gitignore (MetaSpace Repository)
+# =========================================================================
+
+# Build Artifacts & Intermediate Folders
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Visual Studio & IDE files
+.vs/
+*.sln
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.suo
+*.xcodeproj
+*.xcworkspace
+*.sublime-project
+*.sublime-workspace
+
+# Unreal Engine Engine files
+.ignore
+Engine/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# User / Local configuration overrides
+/Config/DefaultGame_Private.ini
+/Config/User*.ini
+*.log
+*.tmp
+*.bak
+
+# Backend Local Environment
+BackendServer/config.local.php
