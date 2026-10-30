@@ -135,4 +135,3 @@ MetaSpace/
 
 ---
 
-*For detailed architectural defense, second-by-second 3-minute video storyboard, and rubric scoring analysis, see [Docs/MetaSpace_Hackathon_Submission_Dossier.pdf](Docs/MetaSpace_Hackathon_Submission_Dossier.pdf).*
