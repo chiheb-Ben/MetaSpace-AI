@@ -359,6 +359,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Space Simulator")
 	bool IsFloatingEnabled() const { return bIsFloatingActive; }
 
+	/** True if player 6DoF thrusters and wall grabbing are locked for UI / Widget interaction */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Space Simulator|UI")
+	bool bInputLockedForUI = false;
+
+	UFUNCTION(BlueprintCallable, Category = "Space Simulator|UI")
+	void SetInputLockedForUI(bool bLock);
+
 	/** Performs the First-Person Camera Line Trace to detect grab/push surfaces */
 	UFUNCTION(BlueprintCallable, Category = "Space Simulator|Hand Push & Pull")
 	bool PerformHandReachTrace(FHitResult& OutHitResult) const;

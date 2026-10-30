@@ -167,6 +167,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Space Grab & Snap")
 	bool IsGrabbableInReach(AActor*& OutGrabbableActor) const;
 
+	/** True if player input is temporarily locked for UI / Widget interaction */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Space Grab & Snap")
+	bool bInputLockedForUI = false;
+
+	UFUNCTION(BlueprintCallable, Category = "Space Grab & Snap")
+	void SetInputLockedForUI(bool bLock) { bInputLockedForUI = bLock; }
+
 private:
 	UPROPERTY(Transient)
 	ACharacter* OwnerCharacter = nullptr;

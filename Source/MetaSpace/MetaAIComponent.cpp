@@ -19,6 +19,7 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/PrimitiveComponent.h"
@@ -2087,6 +2088,8 @@ void UMetaAIComponent::OnModelsListResponseReceived(FHttpRequestPtr Request, FHt
 {
 	if (!bConnectedSuccessfully || !Response.IsValid())
 	{
+		bIsMetaApiConnected = false;
+		OnMetaApiConnectionChanged.Broadcast(false, TEXT("Failed to reach Meta API. Check Internet."));
 		PrintScreenDebug(TEXT("[MetaAI Auth Check] Failed to reach https://api.meta.ai/v1/models (Check Internet Connection)"), FColor::Red, ScreenMessageDuration);
 		return;
 	}
@@ -2121,6 +2124,8 @@ void UMetaAIComponent::OnModelsListResponseReceived(FHttpRequestPtr Request, FHt
 					}
 				}
 
+				bIsMetaApiConnected = true;
+				OnMetaApiConnectionChanged.Broadcast(true, FString::Printf(TEXT("Connected to Meta API! Models: %s"), *ModelNamesList));
 				PrintScreenDebug(
 					FString::Printf(TEXT("[MetaAI Auth SUCCESS] Connected to Meta API (200 OK)! Available Models: %s"), *ModelNamesList),
 					FColor::Green,
@@ -2149,6 +2154,7 @@ void UMetaAIComponent::OnChatCompletionResponseReceived(FHttpRequestPtr Request,
 	if (!bConnectedSuccessfully || !Response.IsValid())
 	{
 		const FString ErrMsg = TEXT("[Meta AI Connection Notice] Reconnecting to Meta Model API...");
+		bIsMetaApiConnected = false;
 		PrintScreenDebug(ErrMsg, FColor::Orange, 5.0f);
 		OnAIResponseReceived.Broadcast(false, ErrMsg, TEXT(""));
 		return;
@@ -7558,5 +7564,185 @@ void UMetaAIComponent::UpdateOrientationTraining(float DeltaTime)
 	         CurrentTrainingPhase == EAstronautTrainingPhase::Step4_CarryAndCalibrate)
 	{
 		UpdateActive3DQuestMarker(DeltaTime);
+	}
+}
+
+void UMetaAIComponent::CheckMetaApiConnection(const FString& InApiKeyOverride)
+{
+	const FString TrimmedOverride = InApiKeyOverride.TrimStartAndEnd();
+	if (!TrimmedOverride.IsEmpty())
+	{
+		ApiKey = TrimmedOverride;
+	}
+
+	if (ApiKey.TrimStartAndEnd().IsEmpty() || ApiKey.TrimStartAndEnd() == TEXT("YOUR_META_MODEL_API_KEY_HERE"))
+	{
+		bIsMetaApiConnected = false;
+		OnMetaApiConnectionChanged.Broadcast(false, TEXT("Meta API Key is empty."));
+		PrintScreenDebug(TEXT("[Meta AI] API Key is empty. Please enter your Meta Model API Key."), FColor::Red, 5.0f);
+		return;
+	}
+
+	VerifyApiKeyAndListModels();
+}
+
+void UMetaAIComponent::SetPlayerInputLockedForUI(bool bLockInput, bool bShowMouse)
+{
+	bIsPlayerInputLockedForUI = bLockInput;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!PC)
+	{
+		return;
+	}
+
+	ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(World, 0);
+
+	if (bLockInput)
+	{
+		PC->bShowMouseCursor = bShowMouse;
+		PC->bEnableClickEvents = true;
+		PC->bEnableMouseOverEvents = true;
+
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(Mode);
+
+		PC->SetIgnoreMoveInput(true);
+		PC->SetIgnoreLookInput(true);
+
+		if (PlayerChar)
+		{
+			PlayerChar->ConsumeMovementInputVector();
+			if (UCharacterMovementComponent* MoveComp = PlayerChar->GetCharacterMovement())
+			{
+				MoveComp->StopMovementImmediately();
+			}
+
+			if (USpaceFloatingComponent* FloatComp = PlayerChar->FindComponentByClass<USpaceFloatingComponent>())
+			{
+				FloatComp->SetInputLockedForUI(true);
+			}
+
+			if (USpaceGrabSnapComponent* GrabComp = PlayerChar->FindComponentByClass<USpaceGrabSnapComponent>())
+			{
+				GrabComp->SetInputLockedForUI(true);
+			}
+		}
+	}
+	else
+	{
+		PC->bShowMouseCursor = false;
+
+		FInputModeGameOnly Mode;
+		PC->SetInputMode(Mode);
+
+		PC->SetIgnoreMoveInput(false);
+		PC->SetIgnoreLookInput(false);
+
+		if (PlayerChar)
+		{
+			if (USpaceFloatingComponent* FloatComp = PlayerChar->FindComponentByClass<USpaceFloatingComponent>())
+			{
+				FloatComp->SetInputLockedForUI(false);
+			}
+
+			if (USpaceGrabSnapComponent* GrabComp = PlayerChar->FindComponentByClass<USpaceGrabSnapComponent>())
+			{
+				GrabComp->SetInputLockedForUI(false);
+			}
+		}
+	}
+}
+
+void UMetaAIComponent::LockPlayerInputForUI(const UObject* WorldContextObject, bool bLockInput, bool bShowMouse)
+{
+	if (!WorldContextObject)
+	{
+		return;
+	}
+
+	if (UMetaAIComponent* MetaAI = GetMetaAIComponentGlobal(WorldContextObject))
+	{
+		MetaAI->SetPlayerInputLockedForUI(bLockInput, bShowMouse);
+		return;
+	}
+
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!PC)
+	{
+		return;
+	}
+
+	ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(World, 0);
+
+	if (bLockInput)
+	{
+		PC->bShowMouseCursor = bShowMouse;
+		PC->bEnableClickEvents = true;
+		PC->bEnableMouseOverEvents = true;
+
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(Mode);
+
+		PC->SetIgnoreMoveInput(true);
+		PC->SetIgnoreLookInput(true);
+
+		if (PlayerChar)
+		{
+			PlayerChar->ConsumeMovementInputVector();
+			if (UCharacterMovementComponent* MoveComp = PlayerChar->GetCharacterMovement())
+			{
+				MoveComp->StopMovementImmediately();
+			}
+
+			if (USpaceFloatingComponent* FloatComp = PlayerChar->FindComponentByClass<USpaceFloatingComponent>())
+			{
+				FloatComp->SetInputLockedForUI(true);
+			}
+
+			if (USpaceGrabSnapComponent* GrabComp = PlayerChar->FindComponentByClass<USpaceGrabSnapComponent>())
+			{
+				GrabComp->SetInputLockedForUI(true);
+			}
+		}
+	}
+	else
+	{
+		PC->bShowMouseCursor = false;
+
+		FInputModeGameOnly Mode;
+		PC->SetInputMode(Mode);
+
+		PC->SetIgnoreMoveInput(false);
+		PC->SetIgnoreLookInput(false);
+
+		if (PlayerChar)
+		{
+			if (USpaceFloatingComponent* FloatComp = PlayerChar->FindComponentByClass<USpaceFloatingComponent>())
+			{
+				FloatComp->SetInputLockedForUI(false);
+			}
+
+			if (USpaceGrabSnapComponent* GrabComp = PlayerChar->FindComponentByClass<USpaceGrabSnapComponent>())
+			{
+				GrabComp->SetInputLockedForUI(false);
+			}
+		}
 	}
 }

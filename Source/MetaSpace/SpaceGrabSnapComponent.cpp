@@ -1113,7 +1113,7 @@ void USpaceGrabSnapComponent::UpdateSnapAnimation(float DeltaTime)
 
 void USpaceGrabSnapComponent::ProcessInputBindings()
 {
-	if (!bUseDirectKeyBindings || !OwnerCharacter)
+	if (bInputLockedForUI || !bUseDirectKeyBindings || !OwnerCharacter)
 	{
 		return;
 	}

@@ -205,6 +205,15 @@ void USpaceFloatingComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void USpaceFloatingComponent::SetInputLockedForUI(bool bLock)
+{
+	bInputLockedForUI = bLock;
+	if (bLock && bIsGrabbingWall)
+	{
+		CancelGrabAndStopInPlace();
+	}
+}
+
 void USpaceFloatingComponent::SetFloatingEnabled(bool bEnable)
 {
 	if (bIsFloatingActive == bEnable)
@@ -1376,7 +1385,7 @@ void USpaceFloatingComponent::EnforceStrandedMinimumDrift(float DeltaTime)
 
 void USpaceFloatingComponent::Process6DoFCharacterControls(float DeltaTime)
 {
-	if (!OwnerCharacter || !OwnerMovementComp)
+	if (bInputLockedForUI || !OwnerCharacter || !OwnerMovementComp)
 	{
 		return;
 	}

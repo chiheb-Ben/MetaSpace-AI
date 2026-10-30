@@ -286,6 +286,9 @@ struct FAstronautHUDState
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnMetaAIResponseReceived, bool, bSuccess, const FString&, AIResponseText, const FString&, RawJsonResponse);
 
+/** Delegate fired whenever the Meta Model API connection status changes */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMetaApiConnectionChanged, bool, bIsConnected, const FString&, Message);
+
 /**
  * Delegate fired whenever Meta AI executes a physics modification command on an Actor in the world.
  * @param TargetActor The Actor whose physics were modified by Meta AI.
@@ -328,6 +331,14 @@ public:
 	FString ApiEndpointUrl = TEXT("https://api.meta.ai/v1/chat/completions");
 
 	/** Meta API Key (Bearer Token starting with LLM_...) */
+	/** True if the connection to Meta Model API has been verified and active */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Meta AI|1. API Configuration")
+	bool bIsMetaApiConnected = false;
+
+	/** Delegate fired whenever the Meta Model API connection status changes */
+	UPROPERTY(BlueprintAssignable, Category = "Meta AI|1. API Configuration")
+	FOnMetaApiConnectionChanged OnMetaApiConnectionChanged;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Meta AI|1. API Configuration")
 	FString ApiKey = TEXT("YOUR_META_MODEL_API_KEY_HERE");
 
@@ -952,6 +963,30 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Meta AI")
 	void VerifyApiKeyAndListModels();
+
+	/** Tests or re-verifies the connection to Meta API. Optionally pass a new API Key string (from UI widget) to update and test it. */
+	UFUNCTION(BlueprintCallable, Category = "Meta AI|1. API Configuration")
+	void CheckMetaApiConnection(const FString& InApiKeyOverride = TEXT(""));
+
+	/** Returns true if Meta API is currently connected and authenticated */
+	UFUNCTION(BlueprintPure, Category = "Meta AI|1. API Configuration")
+	bool IsMetaApiConnected() const { return bIsMetaApiConnected; }
+
+	/** True if player input (movement, camera look, 6DoF thrusters, wall grabbing) is currently locked for UI */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Meta AI|UI Controls")
+	bool bIsPlayerInputLockedForUI = false;
+
+	/** Lock or unlock all player movement, camera look, 6DoF thrusters, wall grabbing, and show/hide mouse cursor for UI */
+	UFUNCTION(BlueprintCallable, Category = "Meta AI|UI Controls")
+	void SetPlayerInputLockedForUI(bool bLockInput, bool bShowMouse = true);
+
+	/** Returns true if player input is currently locked for UI */
+	UFUNCTION(BlueprintPure, Category = "Meta AI|UI Controls")
+	bool IsPlayerInputLockedForUI() const { return bIsPlayerInputLockedForUI; }
+
+	/** Static helper to lock/unlock player input from any Blueprint without needing a MetaAIComponent reference */
+	UFUNCTION(BlueprintCallable, Category = "Meta AI|UI Controls", meta = (WorldContext = "WorldContextObject"))
+	static void LockPlayerInputForUI(const UObject* WorldContextObject, bool bLockInput, bool bShowMouse = true);
 
 	/** Returns how many API requests have been sent in this Play session */
 	UFUNCTION(BlueprintPure, Category = "Meta AI|Credit Protection")
