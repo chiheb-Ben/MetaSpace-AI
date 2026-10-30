@@ -4556,13 +4556,20 @@ void UMetaAIComponent::HandleTrackedPlayerInteractWithE(AActor* InteractedActor,
 
 FString UMetaAIComponent::ClassifyTargetSystemCategory(AActor* InActor, const FString& InTargetName)
 {
-	FString Combined = InTargetName.ToLower();
-	if (InActor && IsValid(InActor))
+	FString Combined;
+	if (!InTargetName.IsEmpty())
+	{
+		Combined = InTargetName.ToLower();
+	}
+	if (InActor && IsValid(InActor) && !InActor->IsUnreachable())
 	{
 		Combined += TEXT(" ") + InActor->GetName().ToLower() + TEXT(" ") + InActor->GetActorNameOrLabel().ToLower();
 		if (const USpaceAIIdentityComponent* Id = InActor->FindComponentByClass<USpaceAIIdentityComponent>())
 		{
-			Combined += TEXT(" ") + Id->EntityName.ToLower() + TEXT(" ") + Id->SpaceshipZoneName.ToLower();
+			if (IsValid(Id))
+			{
+				Combined += TEXT(" ") + Id->EntityName.ToLower() + TEXT(" ") + Id->SpaceshipZoneName.ToLower();
+			}
 		}
 	}
 
@@ -4604,8 +4611,12 @@ FString UMetaAIComponent::ClassifyTargetSystemCategory(AActor* InActor, const FS
 
 FString UMetaAIComponent::ClassifyToolCategory(AActor* InActor, const FString& InToolName)
 {
-	FString Combined = InToolName.ToLower();
-	if (InActor && IsValid(InActor))
+	FString Combined;
+	if (!InToolName.IsEmpty())
+	{
+		Combined = InToolName.ToLower();
+	}
+	if (InActor && IsValid(InActor) && !InActor->IsUnreachable())
 	{
 		Combined += TEXT(" ") + InActor->GetName().ToLower() + TEXT(" ") + InActor->GetActorNameOrLabel().ToLower();
 	}
@@ -6476,7 +6487,7 @@ bool UMetaAIComponent::TryPickUncompletedManualOrDatabaseQuest(FSpaceQuestDefini
 	{
 		for (int32 Idx = 0; Idx < CachedDatabaseQuests.Num(); ++Idx)
 		{
-			const FSpaceQuestDefinition& DbQ = CachedDatabaseQuests[Idx];
+			const FSpaceQuestDefinition DbQ = CachedDatabaseQuests[Idx];
 			const FString Key = DbQ.QuestKey.IsEmpty()
 				? MakeNormalizedQuestKey(DbQ.TargetActorName, DbQ.RequiredToolName, DbQ.QuestTitle)
 				: DbQ.QuestKey;
@@ -6526,6 +6537,9 @@ bool UMetaAIComponent::TryPickUncompletedManualOrDatabaseQuest(FSpaceQuestDefini
 			OutMatchedTarget = TAct;
 			OutMatchedTool = ToolAct;
 
+			const FString RecTargetName = DbQ.TargetActorName;
+			const FString RecToolName = DbQ.RequiredToolName;
+
 			// Mark as assigned so it cannot be picked again in this session
 			SessionAssignedQuestKeys.Add(Key);
 			SessionAssignedQuestKeys.Add(NormKey);
@@ -6533,10 +6547,11 @@ bool UMetaAIComponent::TryPickUncompletedManualOrDatabaseQuest(FSpaceQuestDefini
 			CompletedOrMasteredQuestKeys.Add(Key);
 			CompletedOrMasteredQuestKeys.Add(NormKey);
 
+			// Record usage BEFORE removing element from array so no dangling reference occurs!
+			RecordQuestTargetAndToolUsage(TAct, RecTargetName, ToolAct, RecToolName);
+
 			// Remove from in-memory catalog for this session to guarantee non-repetition!
 			CachedDatabaseQuests.RemoveAt(Idx);
-
-			RecordQuestTargetAndToolUsage(TAct, DbQ.TargetActorName, ToolAct, DbQ.RequiredToolName);
 			return true;
 		}
 	}
