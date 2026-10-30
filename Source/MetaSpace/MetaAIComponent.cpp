@@ -2966,7 +2966,7 @@ AActor* UMetaAIComponent::SpawnSpaceObstacleForPlayer(const FString& ObstacleNam
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
 			AActor* Candidate = *It;
-			if (Candidate && Candidate != PlayerChar && Candidate->FindComponentByClass<USpaceObjectComponent>())
+			if (Candidate && Candidate != PlayerChar && Candidate->FindComponentByClass<USpaceObjectComponent>() && !IsPermanentQuizTabletActor(Candidate))
 			{
 				ChosenClass = Candidate->GetClass();
 				break;
@@ -3100,6 +3100,12 @@ AActor* UMetaAIComponent::SpawnSpaceObstacleForPlayer(const FString& ObstacleNam
 void UMetaAIComponent::DestroyOrDisposeDebrisActor(AActor* DebrisActor)
 {
 	if (!DebrisActor || !IsValid(DebrisActor))
+	{
+		return;
+	}
+
+	// ABSOLUTE IMMUNITY: Never destroy, hide, or disable the SpaceTabletQuiz device / Quest_main!
+	if (IsPermanentQuizTabletActor(DebrisActor))
 	{
 		return;
 	}
@@ -4062,6 +4068,12 @@ void UMetaAIComponent::DiscoverAllLevelToolsAndTerminals()
 			continue;
 		}
 
+		// Strictly EXCLUDE the permanent Space Tablet Quiz device (Quest_main) from being classified as a breakable target or tool!
+		if (IsPermanentQuizTabletActor(Actor))
+		{
+			continue;
+		}
+
 		USpaceAIIdentityComponent* IdComp = Actor->FindComponentByClass<USpaceAIIdentityComponent>();
 		USpaceObjectComponent* SpaceObj = Actor->FindComponentByClass<USpaceObjectComponent>();
 
@@ -4216,7 +4228,8 @@ AActor* UMetaAIComponent::PickNextToolActorInShip(AActor* ForTargetActor) const
 	for (AActor* ToolAct : DiscoveredLevelTools)
 	{
 		if (!ToolAct || !IsValid(ToolAct) || ToolAct == ForTargetActor ||
-			ToolAct == ActiveQuestMarkerActor || ToolAct == ActiveToolMarkerActor)
+			ToolAct == ActiveQuestMarkerActor || ToolAct == ActiveToolMarkerActor ||
+			IsPermanentQuizTabletActor(ToolAct))
 		{
 			continue;
 		}
@@ -4740,7 +4753,8 @@ AActor* UMetaAIComponent::PickNextBreakableActorInShip() const
 	{
 		if (TargetCand && IsValid(TargetCand) && TargetCand != PlayerChar &&
 			TargetCand != ActiveQuestMarkerActor && TargetCand != ActiveToolMarkerActor &&
-			TargetCand != ActiveQuestTargetActor.Get())
+			TargetCand != ActiveQuestTargetActor.Get() &&
+			!IsPermanentQuizTabletActor(TargetCand))
 		{
 			AllCandidates.AddUnique(TargetCand);
 		}
@@ -4749,7 +4763,8 @@ AActor* UMetaAIComponent::PickNextBreakableActorInShip() const
 	{
 		if (TargetCand && IsValid(TargetCand) && TargetCand != PlayerChar &&
 			TargetCand != ActiveQuestMarkerActor && TargetCand != ActiveToolMarkerActor &&
-			TargetCand != ActiveQuestTargetActor.Get())
+			TargetCand != ActiveQuestTargetActor.Get() &&
+			!IsPermanentQuizTabletActor(TargetCand))
 		{
 			AllCandidates.AddUnique(TargetCand);
 		}
@@ -4783,7 +4798,7 @@ AActor* UMetaAIComponent::PickNextBreakableActorInShip() const
 				continue;
 			}
 
-			if (IdComp || Candidate->FindComponentByClass<USpaceObjectComponent>())
+			if ((IdComp || Candidate->FindComponentByClass<USpaceObjectComponent>()) && !IsPermanentQuizTabletActor(Candidate))
 			{
 				AllCandidates.AddUnique(Candidate);
 			}
@@ -5495,6 +5510,32 @@ AActor* UMetaAIComponent::FindDiagnosticTabletActor() const
 	}
 
 	return nullptr;
+}
+
+bool UMetaAIComponent::IsPermanentQuizTabletActor(const AActor* InActor) const
+{
+	if (!InActor || !IsValid(InActor))
+	{
+		return false;
+	}
+
+	// 1. Actor has USpaceTabletQuizComponent
+	if (InActor->FindComponentByClass<USpaceTabletQuizComponent>() != nullptr)
+	{
+		return true;
+	}
+
+	// 2. Name or Class matches Quest_main or Space Tablet Quiz
+	const FString CombinedName = (InActor->GetName() + TEXT(" ") + InActor->GetActorNameOrLabel() + TEXT(" ") + InActor->GetClass()->GetName()).ToLower();
+	if (CombinedName.Contains(TEXT("quest_main")) ||
+	    CombinedName.Contains(TEXT("spacetabletquiz")) ||
+	    CombinedName.Contains(TEXT("tablet_scanner")) ||
+	    CombinedName.Contains(TEXT("diagnostic_tablet")))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void UMetaAIComponent::ActivateDiagnosticTabletEvaluationState()
@@ -6255,20 +6296,26 @@ void UMetaAIComponent::CompleteCurrentAIQuest(const FString& CompletionDetails)
 		if (ActiveQuestRequiredToolActor.IsValid())
 		{
 			AActor* ToolAct = ActiveQuestRequiredToolActor.Get();
-			const FString ToolName = ToolAct->GetActorNameOrLabel().ToLower();
-			if (ToolName.Contains(TEXT("scrap")) || ToolName.Contains(TEXT("debris")) || ToolName.Contains(TEXT("rubble")) || bIsDisposalQuest)
+			if (!IsPermanentQuizTabletActor(ToolAct))
 			{
-				DestroyOrDisposeDebrisActor(ToolAct);
+				const FString ToolName = ToolAct->GetActorNameOrLabel().ToLower();
+				if (ToolName.Contains(TEXT("scrap")) || ToolName.Contains(TEXT("debris")) || ToolName.Contains(TEXT("rubble")) || bIsDisposalQuest)
+				{
+					DestroyOrDisposeDebrisActor(ToolAct);
+				}
 			}
 		}
 
 		if (ActiveQuestTargetActor.IsValid())
 		{
 			AActor* TargetAct = ActiveQuestTargetActor.Get();
-			const FString TargetName = TargetAct->GetActorNameOrLabel().ToLower();
-			if (TargetName.Contains(TEXT("scrap")) || TargetName.Contains(TEXT("debris")) || TargetName.Contains(TEXT("obstacle")) || bIsDisposalQuest)
+			if (!IsPermanentQuizTabletActor(TargetAct))
 			{
-				DestroyOrDisposeDebrisActor(TargetAct);
+				const FString TargetName = TargetAct->GetActorNameOrLabel().ToLower();
+				if (TargetName.Contains(TEXT("scrap")) || TargetName.Contains(TEXT("debris")) || TargetName.Contains(TEXT("obstacle")) || bIsDisposalQuest)
+				{
+					DestroyOrDisposeDebrisActor(TargetAct);
+				}
 			}
 		}
 	}

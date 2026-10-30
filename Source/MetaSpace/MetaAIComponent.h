@@ -1073,6 +1073,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Meta AI|Station")
 	AActor* FindDiagnosticTabletActor() const;
 
+	/** Returns true if the given actor is the permanent Space Tablet Quiz device (Quest_main) which must never be deleted or assigned as debris/scrap */
+	UFUNCTION(BlueprintPure, Category = "Meta AI|Station")
+	bool IsPermanentQuizTabletActor(const AActor* InActor) const;
+
 	/** Transitions the space station to 100% nominal state and activates the Diagnostic Tablet for final certification */
 	UFUNCTION(BlueprintCallable, Category = "Meta AI|Station")
 	void ActivateDiagnosticTabletEvaluationState();
